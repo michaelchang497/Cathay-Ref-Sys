@@ -1,14 +1,78 @@
 import { useState } from 'react'
-import { CreditCard, Cpu, Shield, LogIn, Building2, Stethoscope } from 'lucide-react'
+import { CreditCard, Cpu, Shield, LogIn, Building2, Stethoscope, LayoutDashboard, FileText } from 'lucide-react'
 
 export default function LoginScreen({ onLogin }) {
+  const [role, setRole] = useState(null)
   const [tab, setTab] = useState('health')
   const [pin, setPin] = useState('••••••')
   const [verifying, setVerifying] = useState(false)
 
   function handleLogin() {
     setVerifying(true)
-    setTimeout(() => { setVerifying(false); onLogin() }, 1500)
+    setTimeout(() => { setVerifying(false); onLogin(role) }, 1500)
+  }
+
+  if (!role) {
+    return (
+      <div style={{
+        minHeight: '100vh', background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 50%, #f0f9ff 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{ width: '520px', animation: 'fadeIn 0.4s ease' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <div style={{
+              width: '56px', height: '56px', borderRadius: '16px',
+              background: 'linear-gradient(135deg, #059669, #0d9488)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px', boxShadow: '0 4px 16px rgba(5,150,105,0.25)',
+            }}>
+              <span style={{ color: '#fff', fontSize: '18px', fontWeight: 800 }}>CG</span>
+            </div>
+            <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#064e3b', marginBottom: '4px' }}>國泰 AI 智慧轉診平台</h1>
+            <p style={{ fontSize: '13px', color: '#6b7280' }}>請選擇登入角色</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '16px' }}>
+            {[
+              { id: 'admin', icon: LayoutDashboard, title: '國泰管理者', desc: '轉診統計儀表板、合作院所管理、系統監控', color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe' },
+              { id: 'clinic', icon: FileText, title: '診所 / 醫院端', desc: '開立轉診單、AI 輔助轉診、掛號預約', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+            ].map(r => (
+              <button
+                key={r.id}
+                onClick={() => r.id === 'admin' ? onLogin('admin') : setRole(r.id)}
+                style={{
+                  flex: 1, padding: '28px 20px', borderRadius: '16px',
+                  background: '#fff', border: `2px solid ${r.border}`,
+                  cursor: 'pointer', textAlign: 'center',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                  transition: 'all 0.2s',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = r.color; e.currentTarget.style.boxShadow = `0 4px 20px ${r.color}22` }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = r.border; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)' }}
+              >
+                <div style={{
+                  width: '52px', height: '52px', borderRadius: '14px',
+                  background: r.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <r.icon size={26} color={r.color} />
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937' }}>{r.title}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', lineHeight: '1.5' }}>{r.desc}</div>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '11px', color: '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <Shield size={10} /> HTTPS/TLS 1.3 加密連線 · 健保 VPN 安全通道
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes fadeIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+        `}</style>
+      </div>
+    )
   }
 
   return (
@@ -28,7 +92,14 @@ export default function LoginScreen({ onLogin }) {
             <span style={{ color: '#fff', fontSize: '18px', fontWeight: 800 }}>CG</span>
           </div>
           <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#064e3b', marginBottom: '4px' }}>國泰 AI 智慧轉診平台</h1>
-          <p style={{ fontSize: '13px', color: '#6b7280' }}>合作診所轉診作業系統</p>
+          <p style={{ fontSize: '13px', color: '#6b7280' }}>{role === 'admin' ? '管理者登入' : '合作診所轉診作業系統'}</p>
+          <button
+            onClick={() => setRole(null)}
+            style={{
+              marginTop: '8px', background: 'none', border: 'none',
+              fontSize: '12px', color: '#059669', cursor: 'pointer', fontWeight: 600,
+            }}
+          >← 切換角色</button>
         </div>
 
         {/* Clinic Context Card */}

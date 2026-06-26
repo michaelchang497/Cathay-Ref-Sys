@@ -17,6 +17,15 @@ const ICD_SUGGESTIONS = [
   { code: 'R60.0', desc: 'Localized edema' },
 ]
 
+const REFERRAL_PURPOSES = [
+  { id: 'emergency', label: '急診治療' },
+  { id: 'inpatient', label: '住院治療' },
+  { id: 'outpatient', label: '門診治療' },
+  { id: 'exam', label: '進一步檢查，檢查項目' },
+  { id: 'followup', label: '轉回轉出或適當之院所繼續追蹤' },
+  { id: 'other', label: '其他' },
+]
+
 export default function Step4ConfirmSign({ next, prev, selectedDoctor }) {
   const [signed, setSigned] = useState(false)
   const [signing, setSigning] = useState(false)
@@ -25,6 +34,8 @@ export default function Step4ConfirmSign({ next, prev, selectedDoctor }) {
   const [icdCodes, setIcdCodes] = useState(AI_ICD_CODES.slice(0, 3))
   const [icdInput, setIcdInput] = useState('')
   const [showIcdAdd, setShowIcdAdd] = useState(false)
+  const [referralPurpose, setReferralPurpose] = useState('outpatient')
+  const [examDetail, setExamDetail] = useState('心臟超音波、冠狀動脈電腦斷層')
 
   const icdFiltered = icdInput.trim()
     ? ICD_SUGGESTIONS.filter(s =>
@@ -39,17 +50,17 @@ export default function Step4ConfirmSign({ next, prev, selectedDoctor }) {
   }
 
   const fields = [
-    { label: '主訴 (Chief Complaint)', key: 'chiefComplaint' },
+    { label: 'A. 病情摘要（主訴及簡短病史）', key: 'chiefComplaint' },
     { label: '現病史', key: 'presentIllness' },
     { label: '過去病史', key: 'pastHistory' },
     { label: '目前用藥', key: 'currentMeds' },
-    { label: '異常發現', key: 'abnormalFindings' },
+    { label: 'C. 檢查及治療摘要', key: 'abnormalFindings' },
     { label: '轉診原因', key: 'referralReason' },
   ]
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '960px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#064e3b', marginBottom: '4px' }}>步驟 4 — 確認轉診內容並數位簽章</h2>
+      <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#064e3b', marginBottom: '4px' }}>步驟 3 — 確認轉診內容並數位簽章</h2>
       <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '24px' }}>審核 AI 生成的轉診單內容，確認後進行數位簽章</p>
 
       <div style={{ display: 'flex', gap: '16px' }}>
@@ -78,14 +89,74 @@ export default function Step4ConfirmSign({ next, prev, selectedDoctor }) {
 
           {/* Patient Summary */}
           <div style={{
-            padding: '10px 14px', borderRadius: '8px', marginBottom: '14px',
+            padding: '10px 14px', borderRadius: '8px', marginBottom: '10px',
             background: '#f9fafb', border: '1px solid #f3f4f6',
-            display: 'flex', gap: '16px', fontSize: '12px', color: '#374151',
+            display: 'flex', gap: '16px', fontSize: '12px', color: '#374151', flexWrap: 'wrap',
           }}>
             <span><b>病患：</b>{PATIENT.name}</span>
             <span><b>年齡：</b>{PATIENT.age}歲/{PATIENT.gender}</span>
+            <span><b>身分證號：</b>{PATIENT.insuranceId}</span>
             <span><b>轉入科別：</b>心臟內科</span>
             <span><b>轉入醫師：</b>{selectedDoctor?.name || '—'}</span>
+          </div>
+
+          {/* Drug Allergy */}
+          <div style={{
+            padding: '8px 14px', borderRadius: '8px', marginBottom: '14px',
+            background: '#fef2f2', border: '1px solid #fecaca',
+            display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px',
+          }}>
+            <span style={{ fontWeight: 700, color: '#dc2626', flexShrink: 0 }}>藥物過敏史</span>
+            <span style={{ color: '#991b1b' }}>{PATIENT.drugAllergy}</span>
+          </div>
+
+          {/* Referral Purpose */}
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#9ca3af', marginBottom: '8px' }}>轉診目的</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {REFERRAL_PURPOSES.map(p => (
+                <label key={p.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '6px 10px', borderRadius: '8px', cursor: 'pointer',
+                  background: referralPurpose === p.id ? '#ecfdf5' : '#fff',
+                  border: `1.5px solid ${referralPurpose === p.id ? '#6ee7b7' : '#f3f4f6'}`,
+                  transition: 'all 0.15s',
+                }}>
+                  <div style={{
+                    width: '16px', height: '16px', borderRadius: '50%',
+                    border: `2px solid ${referralPurpose === p.id ? '#059669' : '#d1d5db'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    {referralPurpose === p.id && (
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#059669' }} />
+                    )}
+                  </div>
+                  <span style={{
+                    fontSize: '12px', fontWeight: referralPurpose === p.id ? 600 : 400,
+                    color: referralPurpose === p.id ? '#064e3b' : '#6b7280',
+                  }}>{p.label}</span>
+                  <input
+                    type="radio" name="purpose" value={p.id}
+                    checked={referralPurpose === p.id}
+                    onChange={() => setReferralPurpose(p.id)}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              ))}
+            </div>
+            {referralPurpose === 'exam' && (
+              <input
+                value={examDetail}
+                onChange={e => setExamDetail(e.target.value)}
+                placeholder="請填寫檢查項目..."
+                style={{
+                  marginTop: '8px', width: '100%', height: '34px', padding: '0 10px',
+                  borderRadius: '7px', border: '1.5px solid #d1fae5', fontSize: '12px',
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            )}
           </div>
 
           {/* ICD Codes */}
@@ -288,7 +359,7 @@ export default function Step4ConfirmSign({ next, prev, selectedDoctor }) {
           <ChevronLeft size={16} /> 上一步
         </button>
         <button onClick={next} disabled={!signed} style={signed ? btnPrimary : btnDisabled}>
-          下一步：綠色通道掛號 <ChevronRight size={16} />
+          下一步：VPN 送件 <ChevronRight size={16} />
         </button>
       </div>
     </div>

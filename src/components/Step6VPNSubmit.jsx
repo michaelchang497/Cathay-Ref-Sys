@@ -10,7 +10,7 @@ const VPN_STEPS = [
   { id: 'email', label: 'Email 通知寄發', icon: Mail, duration: 500 },
 ]
 
-export default function Step6VPNSubmit({ prev, selectedDoctor, selectedSlot, setReferralId, backToDashboard }) {
+export default function Step6VPNSubmit({ next, prev, selectedDoctor, selectedSlot, setReferralId, backToDashboard }) {
   const [phase, setPhase] = useState('ready')
   const [stepStatus, setStepStatus] = useState({})
   const [currentStep, setCurrentStep] = useState(null)
@@ -50,7 +50,7 @@ export default function Step6VPNSubmit({ prev, selectedDoctor, selectedSlot, set
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '960px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#064e3b', marginBottom: '4px' }}>步驟 6 — VPN 電子轉診送件</h2>
+      <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#064e3b', marginBottom: '4px' }}>步驟 4 — VPN 電子轉診送件</h2>
       <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '24px' }}>透過健保 VPN 安全通道上傳轉診資料</p>
 
       <div style={{ display: 'flex', gap: '16px' }}>
@@ -182,8 +182,8 @@ export default function Step6VPNSubmit({ prev, selectedDoctor, selectedSlot, set
         <button onClick={prev} style={btnSecondary}>
           <ChevronLeft size={16} /> 上一步
         </button>
-        <button onClick={backToDashboard} disabled={phase !== 'done'} style={phase === 'done' ? btnPrimary : btnDisabled}>
-          回到管理儀表板 <ChevronRight size={16} />
+        <button onClick={next} disabled={phase !== 'done'} style={phase === 'done' ? btnPrimary : btnDisabled}>
+          下一步：綠色通道掛號預約 <ChevronRight size={16} />
         </button>
       </div>
     </div>

@@ -6,7 +6,11 @@ export const PATIENT = {
   gender: '男',
   insuranceId: 'A123456789',
   phone: '0912-345-678',
+  contactPerson: '王○○（配偶）',
+  address: '台北市大安區信義路四段 XX 號 X 樓',
+  drugAllergy: 'Penicillin 類（皮膚紅疹）',
   clinic: '仁愛家醫診所',
+  clinicCode: '3701010018',
   clinicDoctor: '李○○ 醫師',
 }
 
@@ -117,20 +121,65 @@ export const DASHBOARD_STATS = {
     { name: '神經內科', count: 96, pct: 11 },
     { name: '泌尿科', count: 87, pct: 10 },
   ],
+  // 各診所來源轉診數趨勢（折線圖）：可切換週/月週期
+  clinicTrend: {
+    week: {
+      periods: ['5/19', '5/26', '6/02', '6/09', '6/16', '6/23'],
+      series: [
+        { name: '仁愛家醫診所', color: '#059669', values: [8, 7, 9, 11, 10, 12] },
+        { name: '康健聯合診所', color: '#4f46e5', values: [6, 8, 7, 9, 8, 10] },
+        { name: '信義內科診所', color: '#0d9488', values: [5, 6, 5, 7, 8, 7] },
+        { name: '大安耳鼻喉科', color: '#d97706', values: [4, 5, 6, 5, 7, 6] },
+        { name: '中山眼科診所', color: '#7c3aed', values: [3, 4, 4, 5, 5, 6] },
+      ],
+    },
+    month: {
+      periods: ['1月', '2月', '3月', '4月', '5月', '6月'],
+      series: [
+        { name: '仁愛家醫診所', color: '#059669', values: [28, 32, 30, 38, 42, 42] },
+        { name: '康健聯合診所', color: '#4f46e5', values: [22, 26, 30, 33, 35, 38] },
+        { name: '信義內科診所', color: '#0d9488', values: [18, 20, 24, 26, 28, 31] },
+        { name: '大安耳鼻喉科', color: '#d97706', values: [15, 18, 20, 22, 25, 28] },
+        { name: '中山眼科診所', color: '#7c3aed', values: [12, 15, 18, 19, 22, 24] },
+      ],
+    },
+  },
   recentReferrals: [
-    { id: 'REF-20260622-001', patient: '王○○', dept: '心臟內科', doctor: '張○○', status: 'booked', date: '2026-06-22' },
-    { id: 'REF-20260621-003', patient: '李○○', dept: '骨科', doctor: '黃○○', status: 'completed', date: '2026-06-21' },
-    { id: 'REF-20260621-002', patient: '陳○○', dept: '腸胃內科', doctor: '吳○○', status: 'vpn_sent', date: '2026-06-21' },
-    { id: 'REF-20260620-005', patient: '張○○', dept: '神經內科', doctor: '趙○○', status: 'feedback_sent', date: '2026-06-20' },
-    { id: 'REF-20260620-001', patient: '林○○', dept: '心臟內科', doctor: '陳○○', status: 'completed', date: '2026-06-20' },
+    { id: 'REF-20260622-001', patient: '王○○', dept: '心臟內科', doctor: '張○○', status: 'booked', date: '2026-06-22', diagnosis: 'I50.9 Heart failure', purpose: '門診治療', clinic: '仁愛家醫診所' },
+    { id: 'REF-20260621-003', patient: '李○○', dept: '骨科', doctor: '黃○○', status: 'arrived', date: '2026-06-21', diagnosis: 'M54.5 Low back pain', purpose: '進一步檢查', clinic: '康健聯合診所' },
+    { id: 'REF-20260621-002', patient: '陳○○', dept: '腸胃內科', doctor: '吳○○', status: 'arrived', date: '2026-06-21', diagnosis: 'K21.0 GERD', purpose: '門診治療', clinic: '信義內科診所' },
+    { id: 'REF-20260620-005', patient: '張○○', dept: '神經內科', doctor: '趙○○', status: 'no_show', date: '2026-06-20', diagnosis: 'G43.9 Migraine', purpose: '門診治療', clinic: '大安耳鼻喉科' },
+    { id: 'REF-20260620-001', patient: '林○○', dept: '心臟內科', doctor: '陳○○', status: 'arrived', date: '2026-06-20', diagnosis: 'I10 Hypertension', purpose: '進一步檢查', clinic: '中山眼科診所' },
   ],
 }
 
+export const CLINIC_STATS = {
+  totalReferrals: 73,
+  monthReferrals: 8,
+  successRate: 91.8,
+  avgWaitDays: 3.1,
+}
+
+export const CLINIC_REFERRALS = [
+  { id: 'REF-20260622-001', patient: '王○○', dept: '心臟內科', doctor: '張○○', status: 'booked', date: '2026-06-22', diagnosis: 'I50.9 Heart failure', purpose: '門診治療', clinic: '國泰綜合醫院' },
+  { id: 'REF-20260618-002', patient: '李○○', dept: '骨科', doctor: '黃○○', status: 'arrived', date: '2026-06-18', diagnosis: 'M54.5 Low back pain', purpose: '進一步檢查', clinic: '國泰綜合醫院' },
+  { id: 'REF-20260615-001', patient: '陳○○', dept: '腸胃內科', doctor: '吳○○', status: 'arrived', date: '2026-06-15', diagnosis: 'K21.0 GERD', purpose: '門診治療', clinic: '國泰綜合醫院' },
+  { id: 'REF-20260610-003', patient: '張○○', dept: '神經內科', doctor: '趙○○', status: 'no_show', date: '2026-06-10', diagnosis: 'G43.9 Migraine', purpose: '門診治療', clinic: '國泰綜合醫院' },
+  { id: 'REF-20260605-001', patient: '林○○', dept: '心臟內科', doctor: '陳○○', status: 'arrived', date: '2026-06-05', diagnosis: 'I10 Hypertension', purpose: '進一步檢查', clinic: '國泰綜合醫院' },
+]
+
+export const PARTNER_CLINICS = [
+  { id: 1, name: '仁愛家醫診所', code: '3701010018', district: '台北市大安區', contact: '李○○ 醫師', phone: '(02) 2701-1234', monthReferrals: 42, status: 'active' },
+  { id: 2, name: '康健聯合診所', code: '3701010025', district: '台北市信義區', contact: '陳○○ 醫師', phone: '(02) 2722-5678', monthReferrals: 38, status: 'active' },
+  { id: 3, name: '信義內科診所', code: '3701010033', district: '台北市信義區', contact: '林○○ 醫師', phone: '(02) 2758-9012', monthReferrals: 31, status: 'active' },
+  { id: 4, name: '大安耳鼻喉科', code: '3701010041', district: '台北市大安區', contact: '王○○ 醫師', phone: '(02) 2706-3456', monthReferrals: 28, status: 'active' },
+  { id: 5, name: '中山眼科診所', code: '3701010059', district: '台北市中山區', contact: '張○○ 醫師', phone: '(02) 2531-7890', monthReferrals: 24, status: 'inactive' },
+]
+
 export const STEPS = [
   { num: 1, label: '輸入資料', short: '輸入' },
-  { num: 2, label: 'AI 生成', short: 'AI生成' },
-  { num: 3, label: 'AI 推薦', short: '推薦' },
-  { num: 4, label: '確認簽章', short: '簽章' },
+  { num: 2, label: 'AI 生成與推薦', short: 'AI' },
+  { num: 3, label: '預覽確認', short: '確認' },
+  { num: 4, label: 'VPN 送件', short: 'VPN' },
   { num: 5, label: '綠色通道', short: '掛號' },
-  { num: 6, label: 'VPN 送件', short: 'VPN' },
 ]
