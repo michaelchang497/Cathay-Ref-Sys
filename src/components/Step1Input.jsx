@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Mic, Camera, Upload, ChevronRight, User, FileText, CreditCard, Monitor, Check } from 'lucide-react'
+import { Mic, Camera, Upload, ChevronRight, User, FileText, CreditCard, Monitor, Check, Smartphone } from 'lucide-react'
+import QRCode from 'qrcode'
 import { PATIENT } from '../data/mockData'
+
+const BRIDGE = 'http://localhost:8765'
 
 export default function Step1Input({ next }) {
   const [recording, setRecording] = useState(false)
@@ -11,8 +14,14 @@ export default function Step1Input({ next }) {
   const [cardRead, setCardRead] = useState(false)
   const [cardReading, setCardReading] = useState(false)
   const [capture, setCapture] = useState('idle') // idle | scanning | done
-  const [captured, setCaptured] = useState(null) // 真實從剪貼簿讀到的 OCR 結果
+  const [captured, setCaptured] = useState(null) // 真實 OCR 結果（螢幕截圖或手機上傳）
   const [captureError, setCaptureError] = useState('')
+  const [mobile, setMobile] = useState('idle') // idle | waiting（等手機上傳）| preview（收到照片但沒抽到欄位）
+  const [qrDataUrl, setQrDataUrl] = useState('')
+  const [qrUrl, setQrUrl] = useState('')
+  const [mobileError, setMobileError] = useState('')
+  const [mobilePhoto, setMobilePhoto] = useState('') // 手機上傳的照片預覽 URL
+  const pollRef = useRef(null)
 
   function applyCaptured(data) {
     setCaptured(data)
@@ -25,12 +34,12 @@ export default function Step1Input({ next }) {
     setCapture('done')
   }
 
-  // 真功能：呼叫本地橋接服務 → 跳出框選 → 本地 OCR → 回傳欄位帶入
+  // 真功能：呼叫地端服務 → 跳出框選 → 本地 OCR → 回傳欄位帶入
   async function handleScreenCapture() {
     setCaptureError('')
     setCapture('scanning')
     try {
-      const res = await fetch('http://localhost:8765/capture?delay=4')
+      const res = await fetch(`${BRIDGE}/capture?delay=4`)
       const json = await res.json()
       if (json.ok && json.fields && Object.keys(json.fields).length > 0) {
         applyCaptured(json.fields)
@@ -39,9 +48,52 @@ export default function Step1Input({ next }) {
         setCapture('idle')
       }
     } catch (e) {
-      setCaptureError('連不到本地擷取服務。請先在終端機執行：python3 bridge.py')
+      setCaptureError('連不到地端服務。請先在終端機執行：python3 bridge.py')
       setCapture('idle')
     }
+  }
+
+  // 真功能：產生一次性 QR → 手機掃描拍照上傳 → 地端 OCR → 桌機輪詢取件帶入
+  async function handleMobileUpload() {
+    setMobileError('')
+    try {
+      const res = await fetch(`${BRIDGE}/session`)
+      const json = await res.json()
+      if (!json.ok) { setMobileError(json.error || '無法建立工作階段'); return }
+      setQrUrl(json.url)
+      const dataUrl = await QRCode.toDataURL(json.url, {
+        width: 200, margin: 1, color: { dark: '#3730a3', light: '#ffffff' },
+      })
+      setQrDataUrl(dataUrl)
+      setMobile('waiting')
+      setMobilePhoto('')
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = setInterval(async () => {
+        try {
+          const r = await fetch(`${BRIDGE}/result?token=${encodeURIComponent(json.token)}`)
+          const j = await r.json()
+          if (j.ok) {
+            clearInterval(pollRef.current); pollRef.current = null
+            // 照片上傳完成就先抓預覽（即使沒辨識成功也要顯示）
+            setMobilePhoto(j.has_image ? `${BRIDGE}/image?token=${encodeURIComponent(json.token)}` : '')
+            const fields = j.fields || {}
+            if (Object.keys(fields).length > 0) {
+              setMobile('idle')        // 收合右欄，改顯示帶入結果
+              applyCaptured(fields)
+            } else {
+              setMobile('preview')     // 有照片、但沒抽到欄位 → 留在右欄顯示預覽
+            }
+          }
+        } catch (e) { /* 手機還沒傳，繼續輪詢 */ }
+      }, 2000)
+    } catch (e) {
+      setMobileError('連不到地端服務。請先在終端機執行：python3 bridge.py')
+    }
+  }
+
+  function cancelMobile() {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    setMobile('idle'); setQrDataUrl(''); setQrUrl(''); setMobilePhoto('')
   }
 
   function handleReadCard() {
@@ -52,7 +104,10 @@ export default function Step1Input({ next }) {
   const streamRef = useRef(null)
   const fullText = '病患王先生，68歲男性，主訴近兩週反覆胸悶，活動時加劇，休息後緩解。合併有高血壓及糖尿病病史約十年，目前規律服藥中。近日有輕微下肢水腫，偶有夜間端坐呼吸情形。血壓偏高約 160/95，心跳規則但偏快約 92 次。建議轉診至心臟內科做進一步檢查。'
 
-  useEffect(() => () => { if (streamRef.current) clearInterval(streamRef.current) }, [])
+  useEffect(() => () => {
+    if (streamRef.current) clearInterval(streamRef.current)
+    if (pollRef.current) clearInterval(pollRef.current)
+  }, [])
 
   function handleVoice() {
     setRecording(true)
@@ -82,84 +137,140 @@ export default function Step1Input({ next }) {
       <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#064e3b', marginBottom: '4px' }}>步驟 1 — 輸入轉診資料</h2>
       <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '24px' }}>從看診系統一鍵擷取，或以語音、上傳報告建立轉診資訊</p>
 
-      {/* 從看診系統擷取 — 桌面 OCR 工具 */}
+      {/* 擷取病患資料 — 螢幕截圖 OCR ＋ 手機拍照上傳 */}
       <div style={{
         borderRadius: '14px', marginBottom: '16px', overflow: 'hidden',
         border: '1.5px solid #c7d2fe', background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)',
         boxShadow: '0 2px 10px rgba(79,70,229,0.08)',
       }}>
         <div style={{ padding: '18px 22px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
             <Monitor size={16} color="#4f46e5" />
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#3730a3' }}>從看診系統擷取</span>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: '#3730a3' }}>擷取病患資料</span>
             <span style={{
               fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '99px',
               background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe',
             }}>本地辨識 · 資料不外傳</span>
           </div>
-          <p style={{ fontSize: '12px', color: '#6366f1', marginBottom: '14px', lineHeight: '1.6' }}>
-            點擊後在看診系統畫面上框選病患資料區域，即會自動辨識並帶入下方欄位（本地辨識、不連雲端）。
-          </p>
 
-          {capture === 'idle' && (
-            <>
-              <button onClick={handleScreenCapture} style={{
-                padding: '10px 22px', borderRadius: '10px', border: 'none',
-                background: '#4f46e5', color: '#fff', fontSize: '13px', fontWeight: 700,
-                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px',
-                boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
-              }}>
-                <Monitor size={16} /> 讀取擷取結果並帶入
-              </button>
-              {captureError && (
-                <p style={{ fontSize: '11px', color: '#dc2626', marginTop: '10px', lineHeight: '1.6' }}>
-                  ⚠ {captureError}
-                </p>
-              )}
-            </>
-          )}
-
-          {capture === 'scanning' && (
-            <div style={{
-              position: 'relative', borderRadius: '10px', overflow: 'hidden',
-              border: '1.5px solid #818cf8', background: '#1e1b4b',
-              padding: '20px 22px', color: '#c7d2fe',
-            }}>
-              <div style={{
-                position: 'absolute', left: 0, right: 0, height: '2px',
-                background: 'linear-gradient(90deg, transparent, #a5b4fc, transparent)',
-                animation: 'scanline 1.3s linear infinite', boxShadow: '0 0 8px #818cf8',
-              }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600 }}>
-                <div style={{
-                  width: '14px', height: '14px', border: '2px solid #a5b4fc',
-                  borderTopColor: 'transparent', borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite',
-                }} />
-                請切換到目標畫面（約 4 秒後出現準星），框選後自動辨識…
-              </div>
-            </div>
-          )}
-
-          {capture === 'done' && captured && (
+          {capture === 'done' && captured ? (
             <div style={{ animation: 'fadeIn 0.3s ease' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
                 <span style={{
                   fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '99px',
                   background: '#4f46e5', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                }}><Check size={12} /> 已從畫面辨識 {Object.keys(captured).length} 個欄位並帶入</span>
+                }}><Check size={12} /> 已辨識 {Object.keys(captured).length} 個欄位並帶入</span>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {Object.values(captured).map((v, i) => (
-                  <span key={i} style={{
-                    fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '6px',
-                    background: '#fff', color: '#4338ca', border: '1px solid #c7d2fe',
-                  }}>{v.label}：{v.value}</span>
-                ))}
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '6px', alignContent: 'flex-start' }}>
+                  {Object.values(captured).map((v, i) => (
+                    <span key={i} style={{
+                      fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '6px',
+                      background: '#fff', color: '#4338ca', border: '1px solid #c7d2fe',
+                    }}>{v.label}：{v.value}</span>
+                  ))}
+                </div>
+                {mobilePhoto && (
+                  <div style={{ flexShrink: 0, textAlign: 'center' }}>
+                    <img src={mobilePhoto} alt="上傳照片" style={{
+                      width: '110px', maxHeight: '130px', objectFit: 'contain',
+                      borderRadius: '8px', border: '1px solid #e0e7ff', background: '#fff',
+                    }} />
+                    <div style={{ fontSize: '9px', color: '#9ca3af', marginTop: '3px' }}>上傳照片</div>
+                  </div>
+                )}
               </div>
               <p style={{ fontSize: '11px', color: '#6366f1', marginTop: '10px' }}>
                 ↑ 以上為真實 OCR 辨識結果，主訴/現病史已帶入下方欄位，請醫師確認無誤。
               </p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              {/* 左：螢幕截圖擷取 */}
+              <div style={subCard}>
+                <div style={subHead}><Monitor size={15} color="#4f46e5" /> 螢幕截圖擷取</div>
+                <p style={subDesc}>在看診系統畫面上框選病患資料區域，自動辨識帶入。</p>
+                {capture === 'scanning' ? (
+                  <div style={{
+                    position: 'relative', borderRadius: '10px', overflow: 'hidden',
+                    border: '1.5px solid #818cf8', background: '#1e1b4b',
+                    padding: '16px', color: '#c7d2fe',
+                  }}>
+                    <div style={{
+                      position: 'absolute', left: 0, right: 0, height: '2px',
+                      background: 'linear-gradient(90deg, transparent, #a5b4fc, transparent)',
+                      animation: 'scanline 1.3s linear infinite', boxShadow: '0 0 8px #818cf8',
+                    }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600 }}>
+                      <div style={{
+                        width: '14px', height: '14px', border: '2px solid #a5b4fc',
+                        borderTopColor: 'transparent', borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite',
+                      }} />
+                      切換到目標畫面，框選後自動辨識…
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={handleScreenCapture} style={btnIndigo}>
+                      <Monitor size={15} /> 框選畫面並辨識
+                    </button>
+                    {captureError && <p style={errText}>⚠ {captureError}</p>}
+                  </>
+                )}
+              </div>
+
+              {/* 右：手機拍照上傳 */}
+              <div style={subCard}>
+                <div style={subHead}><Smartphone size={15} color="#4f46e5" /> 手機拍照上傳</div>
+                <p style={subDesc}>產生 QR，手機掃描後拍照或選相簿，於電腦端辨識。</p>
+                {mobile === 'waiting' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <img src={qrDataUrl} alt="掃描上傳 QR" style={{
+                      width: '150px', height: '150px', borderRadius: '10px',
+                      border: '1px solid #c7d2fe', background: '#fff', padding: '6px',
+                    }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', margin: '10px 0 4px', fontSize: '12px', fontWeight: 600, color: '#4338ca' }}>
+                      <div style={{
+                        width: '12px', height: '12px', border: '2px solid #a5b4fc',
+                        borderTopColor: 'transparent', borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite',
+                      }} />
+                      等待手機上傳…
+                    </div>
+                    <p style={{ fontSize: '10px', color: '#9ca3af', lineHeight: '1.5', margin: '0 0 8px' }}>
+                      手機需與電腦在同一個熱點 / Wi-Fi<br />
+                      <span style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{qrUrl}</span>
+                    </p>
+                    <button onClick={cancelMobile} style={{
+                      fontSize: '11px', color: '#6366f1', background: 'none', border: 'none',
+                      cursor: 'pointer', textDecoration: 'underline',
+                    }}>取消 / 重新產生</button>
+                  </div>
+                ) : mobile === 'preview' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    {mobilePhoto && (
+                      <img src={mobilePhoto} alt="上傳照片預覽" style={{
+                        width: '100%', maxHeight: '160px', objectFit: 'contain',
+                        borderRadius: '10px', border: '1px solid #e0e7ff', background: '#fff',
+                      }} />
+                    )}
+                    <p style={{ fontSize: '11px', color: '#b45309', margin: '10px 0 8px', lineHeight: '1.6' }}>
+                      ⚠ 已收到照片，但未自動辨識到欄位。可確認照片清晰度後重拍，或改用螢幕截圖，亦可手動填寫下方欄位。
+                    </p>
+                    <button onClick={cancelMobile} style={btnIndigoOutline}>
+                      <Smartphone size={15} /> 重新拍照上傳
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={handleMobileUpload} style={btnIndigoOutline}>
+                      <Smartphone size={15} /> 產生 QR Code
+                    </button>
+                    {mobileError && <p style={errText}>⚠ {mobileError}</p>}
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -171,7 +282,7 @@ export default function Step1Input({ next }) {
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <CreditCard size={36} color={cardReading ? '#059669' : '#d1d5db'} style={cardReading ? { animation: 'pulse 0.8s infinite' } : {}} />
             <div style={{ fontSize: '13px', color: '#6b7280', margin: '12px 0 16px' }}>
-              請插入病患健保卡，點擊下方按鈕讀取基本資料
+              尚未讀取到健保卡，請點擊重新讀取
             </div>
             <button
               onClick={handleReadCard}
@@ -449,3 +560,27 @@ const btnPrimary = {
   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
   boxShadow: '0 2px 8px rgba(5,150,105,0.25)', transition: 'all 0.2s',
 }
+
+const subCard = {
+  background: '#fff', borderRadius: '12px', border: '1px solid #e0e7ff',
+  padding: '14px 16px', display: 'flex', flexDirection: 'column',
+}
+const subHead = {
+  display: 'flex', alignItems: 'center', gap: '6px',
+  fontSize: '13px', fontWeight: 800, color: '#3730a3', marginBottom: '6px',
+}
+const subDesc = {
+  fontSize: '11px', color: '#6366f1', margin: '0 0 12px', lineHeight: '1.6', minHeight: '32px',
+}
+const btnIndigo = {
+  padding: '10px 18px', borderRadius: '10px', border: 'none',
+  background: '#4f46e5', color: '#fff', fontSize: '13px', fontWeight: 700,
+  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+  boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+}
+const btnIndigoOutline = {
+  padding: '10px 18px', borderRadius: '10px', border: '1.5px solid #c7d2fe',
+  background: '#fff', color: '#4f46e5', fontSize: '13px', fontWeight: 700,
+  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+}
+const errText = { fontSize: '11px', color: '#dc2626', marginTop: '10px', lineHeight: '1.6' }

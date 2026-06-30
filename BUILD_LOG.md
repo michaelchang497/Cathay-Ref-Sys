@@ -95,3 +95,72 @@
 - 警告：Amber `#d97706`
 - 異常值：Red `#dc2626`
 - 中性色：標準灰階（同前專案）
+
+---
+
+## ⑤ 交付後迭代（2026-06-24 ~ 06-30）
+
+交付後依國泰回饋與展示需求持續加值，分三條主線。
+
+### A. 管理者後台強化
+- **側邊欄導覽**（`App.jsx`）：管理者登入後左側出現 sidebar（管理儀表板 / 合作診所管理 / 轉診紀錄·系統設定佔位）。`adminView` state 切換右側內容；登出與點 logo 會重置回 dashboard。
+- **合作診所管理**（`ClinicManagement.jsx`，新檔）：列表 + 搜尋（名稱/代碼/區域即時過濾）+ 新增 modal + 啟用/停用切換。全為 session 內 local state（示意操作，重整還原）。資料源 `PARTNER_CLINICS`。
+- **儀表板改版**（`AdminDashboard.jsx`）：移除「轉診科別分布」；「近期轉診紀錄」移到右上、改點單號彈窗、狀態值比照診所端（已掛號/已到診/未到診）；底部新增**各診所來源轉診數折線圖**（純 SVG 手刻、可切週/月，資料源 `DASHBOARD_STATS.clinicTrend`）。
+
+### B. 本地端 OCR 擷取（無 API、影像不外傳）
+> 解決院方「不串 API、資料不外傳」前提下，怎麼把看診畫面資料快速帶進轉診系統。
+
+- **`local-ocr-poc/`**：獨立 POC。`screencapture -i` 框選 → macOS Vision（`ocrmac`）本地 OCR → 規則抽欄位（`capture_ocr.py` 的 `PATIENT_RULES`/`FIELD_RULES`/`LABELED_FIELDS`）。
+- **`bridge.py`**：地端 HTTP 服務（port 8765），讓網頁「一鍵」觸發整條流程。`Step1Input` 的「螢幕截圖擷取」按鈕 → fetch `localhost:8765/capture` → 跳框選 → 回欄位帶入。
+- **HIS 字樣全移除**（院方敏感），UI 改稱「看診系統 / 擷取病患資料」。
+
+### C. 手機拍照上傳（QR 配對 → 地端取件）
+> 「QR 叫相機 → 拍 → 傳地端 → 地端 OCR → 桌機取件」。地端服務一台全包（中繼＋OCR 引擎），手機與電腦同熱點即可，影像不出區網。
+
+- `bridge.py` 升級：綁 `0.0.0.0`（手機才連得到）；`/session` 發一次性 token + 區網網址、`/m` 回手機上傳頁（內建拍照 / 選相簿）、`/upload` 收圖跑 OCR、`/result` 給桌機輪詢、`/image` 回照片供預覽。
+- `Step1Input.jsx`：擷取區改**左右並列**（左=螢幕截圖、右=手機 QR）；用 `qrcode` 套件渲染 QR；桌機 2 秒輪詢取件。
+- **照片預覽**：不論辨識成功與否都顯示上傳照片。成功→帶入欄位＋縮圖；失敗（抽不到欄位）→只顯示預覽＋提示重拍/手動填。關鍵：`/result` 改成「照片到了就回 ok」，輪詢不再要求 fields > 0。
+
+### 交付後新增/變更檔案
+| 檔案 | 變更 |
+|------|------|
+| `App.jsx` | 管理者 sidebar + adminView 切換 |
+| `components/ClinicManagement.jsx` | 新檔：合作診所管理 |
+| `components/AdminDashboard.jsx` | 移除科別分布、紀錄移右上+彈窗、新增折線圖 |
+| `data/mockData.js` | 新增 `PARTNER_CLINICS`、`DASHBOARD_STATS.clinicTrend` |
+| `components/Step1Input.jsx` | 螢幕截圖＋手機 QR 並列、照片預覽 |
+| `local-ocr-poc/capture_ocr.py` | 本地 OCR + 規則抽欄位 |
+| `local-ocr-poc/bridge.py` | 地端服務：螢幕截圖 + 手機上傳一台全包 |
+| `package.json` | 新增 `qrcode` 相依 |
+
+### 關鍵設計決策（交付後）
+| 決策 | 選擇 | 理由 |
+|------|------|------|
+| OCR 在哪跑 | 地端（macOS Vision）非雲端 | 院方資安底線：影像不出本機/區網 |
+| 手機如何進系統 | QR token 配對 + 地端中繼 | 瀏覽器不能互傳/不能監聽 port，必須有會聽 port 的地端服務 |
+| 同網方式 | 手機 4G 熱點優先於公司 Wi-Fi | 公司 Wi-Fi 常開 client isolation，熱點不做隔離最穩 |
+| 照片預覽 | 辨識失敗也顯示 | 拍照誤判率高，醫師需肉眼確認原圖；`/result` 改為「照片到即回 ok」 |
+| 影像生命週期 | 記憶體暫存、用完即刪、token 短時效 | 醫療資料等級，不落地長存 |
+| 欄位抽取 | 樸素正則（未來可換 Claude Vision） | 先證可行；正則對版面敏感，語意理解是升級路徑 |
+
+### 已知限制 / 部署注意
+- **mixed content**：桌機站台若為 https（GitHub Pages），瀏覽器會擋對 `http://localhost` 與 `http://區網IP` 的請求 → OCR/手機上傳只在本機 http（`npm run dev`）環境成立。線上 demo 僅展示 UI。
+- **部署兩條線**：`main`=原始碼、`gh-pages`=build 後的 dist（GitHub Pages 實際吃這個）。更新線上版需「build → 推 gh-pages」，光推 main 不會更新網站。
+- `bridge.py` 改動後**必須重啟**（Python 不 hot-reload imports）。
+
+### D. ICD-10 規定查證（保留決策）
+> 起因：質疑轉診是否「法規上必填 ICD」，若不必填就拿掉編碼部分。
+
+查三份來源文件後結論——**不能拿掉**：
+- **健保轉診辦法**（`轉診注意事項`）：轉診單法定必要內容只有轉診目的、病歷摘要、院所資訊、診療科別、開立日期、有效期限。ICD **非必填**（要的是「病歷摘要」的文字診斷）。
+- **健保電子轉診 Web API 介接說明書**：查詢輸出欄位也沒有診斷碼，佐證 ICD 非轉診單核心欄位。
+- **本案採購需求表第 6 點**：白紙黑字要求「**ICD-10 預測模型：根據描述自動預測診斷碼，作為分科決策的基礎**」「判斷主診斷」。
+
+→ ICD 在本案的角色不是「讓轉診單合法」，而是**智慧決策（AI 分科）的核心輸入**，是標案最值錢的加值點。維持現狀（`Step2AIGenerate` 可增刪、`Step3Preview` 預覽、`AdminDashboard`）。辨識準度問題後續再優化。
+
+### E. 綠色通道掛號方式選擇（彈窗分流）
+- `Step6VPNSubmit.jsx`：「下一步：綠色通道掛號預約」按鈕改成**開彈窗選掛號方式**，不直接 `next()`：
+  1. **使用智慧轉診平台掛號**（推薦）→ `next()` 進綠色通道選位
+  2. **使用國泰綜合醫院網路掛號** → `window.open('https://reg.cgh.org.tw/tw/reg/main_01.jsp', '_blank', 'noopener,noreferrer')` 另開官方掛號頁
+- 遮罩點擊 / X 關閉；按鈕仍須 `phase === 'done'`（VPN 傳完）才可點。
+- 設計理由：院方既有官方網路掛號系統，平台不該強制取代——給診所選擇權，平台掛號是加值選項而非唯一路徑。

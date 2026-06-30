@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronRight, ChevronLeft, Wifi, Lock, Mail, FileText, CheckCircle } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Wifi, Lock, Mail, FileText, CheckCircle, X, Sparkles, ExternalLink } from 'lucide-react'
 import { PATIENT } from '../data/mockData'
+
+const CGH_REG_URL = 'https://reg.cgh.org.tw/tw/reg/main_01.jsp'
 
 const VPN_STEPS = [
   { id: 'xml', label: '轉診單 XML/PDF 產生', icon: FileText, duration: 800 },
@@ -15,6 +17,7 @@ export default function Step6VPNSubmit({ next, prev, selectedDoctor, selectedSlo
   const [stepStatus, setStepStatus] = useState({})
   const [currentStep, setCurrentStep] = useState(null)
   const [genRefId, setGenRefId] = useState(null)
+  const [showRegModal, setShowRegModal] = useState(false)
   const timeoutsRef = useRef([])
 
   function schedule(fn, ms) {
@@ -182,13 +185,95 @@ export default function Step6VPNSubmit({ next, prev, selectedDoctor, selectedSlo
         <button onClick={prev} style={btnSecondary}>
           <ChevronLeft size={16} /> 上一步
         </button>
-        <button onClick={next} disabled={phase !== 'done'} style={phase === 'done' ? btnPrimary : btnDisabled}>
+        <button onClick={() => setShowRegModal(true)} disabled={phase !== 'done'} style={phase === 'done' ? btnPrimary : btnDisabled}>
           下一步：綠色通道掛號預約 <ChevronRight size={16} />
         </button>
       </div>
+
+      {/* 掛號方式選擇彈窗 */}
+      {showRegModal && (
+        <div
+          onClick={() => setShowRegModal(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(6,78,59,0.35)', backdropFilter: 'blur(2px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: '460px', background: '#fff',
+              borderRadius: '16px', padding: '24px', boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '4px' }}>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#064e3b', margin: 0 }}>選擇掛號方式</h3>
+                <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0' }}>轉診單已送出，請為病患安排國泰綜合醫院門診</p>
+              </div>
+              <button onClick={() => setShowRegModal(false)} style={{
+                border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af', padding: '2px',
+              }}><X size={18} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '18px' }}>
+              {/* 選項 1：智慧轉診平台掛號 */}
+              <button
+                onClick={() => { setShowRegModal(false); next() }}
+                style={regOption(true)}
+              >
+                <div style={{
+                  width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0,
+                  background: 'linear-gradient(135deg,#059669,#0d9488)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+                }}>
+                  <Sparkles size={19} />
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#064e3b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    使用智慧轉診平台掛號
+                    <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '99px', background: '#ecfdf5', color: '#059669', border: '1px solid #d1fae5' }}>推薦</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>綠色通道預留診號，直接選位，無需離開系統</div>
+                </div>
+                <ChevronRight size={16} color="#059669" />
+              </button>
+
+              {/* 選項 2：國泰綜合醫院網路掛號 */}
+              <button
+                onClick={() => { window.open(CGH_REG_URL, '_blank', 'noopener,noreferrer'); setShowRegModal(false) }}
+                style={regOption(false)}
+              >
+                <div style={{
+                  width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0,
+                  background: '#f3f4f6',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280',
+                }}>
+                  <ExternalLink size={18} />
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1f2937' }}>使用國泰綜合醫院網路掛號</div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>另開官方網路掛號頁面（reg.cgh.org.tw）</div>
+                </div>
+                <ExternalLink size={15} color="#9ca3af" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+const regOption = (primary) => ({
+  display: 'flex', alignItems: 'center', gap: '12px',
+  padding: '14px', borderRadius: '12px', cursor: 'pointer', width: '100%',
+  background: '#fff',
+  border: `1.5px solid ${primary ? '#6ee7b7' : '#e5e7eb'}`,
+  transition: 'all 0.15s',
+})
 
 const btnPrimary = {
   padding: '10px 24px', borderRadius: '10px', border: 'none',
